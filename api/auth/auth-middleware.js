@@ -1,11 +1,25 @@
 const { JWT_SECRET } = require("../secrets"); // use this secret!
 const Helper = require('../Helpers/helpers')
 const User = require('../users/users-model')
+const jwt = require('jsonwebtoken')
 
 const restricted = (req, res, next) => {
   const token = req.headers.authorization
+  console.log('token', token)
   if (token) {
-    
+    jwt.verify( token, JWT_SECRET, ( err, decoded) => {
+      if (err) {
+        console.error('Token verification error:', err);
+        res.status(401).json({message: `Token invalid`})
+      } else {
+        req.decodedJwt = decoded
+        console.log('restricted regular', req.decodedJwt)
+        console.log('inside restricted', req.decodedJwt.role_name)
+        next()
+      }
+    })
+  } else {
+    res.status(401).json({message: 'Token required'})
   }
   /*
     If the user does not provide a token in the Authorization header:
@@ -22,11 +36,16 @@ const restricted = (req, res, next) => {
 
     Put the decoded token in the req object, to make life easier for middlewares downstream!
   */
-    console.log('in resrticted auth middleware')
-    next()
 }
 
 const only = role_name => (req, res, next) => {
+  console.log('inside only', req.decodedJwt.role_name);
+  if (req.decodedJwt.role_name === role_name) {
+    next()
+	} else {
+    res.status(403).json({message: 'This is not for you'})
+  }
+  
   /*
     If the user does not provide a token in the Authorization header with a role_name
     inside its payload matching the role_name passed to this function as its argument:
@@ -37,7 +56,6 @@ const only = role_name => (req, res, next) => {
 
     Pull the decoded token from the req object, to avoid verifying it again!
   */
-  next()
 }
 
 
@@ -63,8 +81,8 @@ const checkUsernameExists = async (req, res, next) => {
 const validateRoleName = (req, res, next) => {
   const {role_name} = req.body
   // If the role_name in the body is valid, set req.role_name to be the trimmed string and proceed.
-  if (role_name && req.role_name.trim()) {
-    req.role_name = req.role_name.trim()
+  if (role_name && role_name.trim()) {
+    req.role_name = role_name.trim()
 
     // If role_name is 'admin' after trimming the string:
     // status 422
